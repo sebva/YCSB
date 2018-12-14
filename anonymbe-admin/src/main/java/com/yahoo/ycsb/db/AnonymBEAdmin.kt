@@ -17,6 +17,14 @@ private val <T : Result> Response<T>.ycsbStatus: Status
         }
     }
 
+private operator fun ByteIterator.rem(modulo: Int): Int {
+    var sum = 0
+    while (hasNext()) {
+        sum += nextByte() % modulo
+    }
+    return sum % modulo
+}
+
 class AnonymBEAdmin : DB() {
     private val service by lazy<AdminApi> {
         val url = properties["apiurl"]
@@ -46,8 +54,14 @@ class AnonymBEAdmin : DB() {
     }
 
     override fun update(table: String?, key: String, values: MutableMap<String, ByteIterator>): Status {
-        val errors = values.keys.parallelStream().map {
-            service.addUserToGroup(UserGroup(key, it)).execute()
+        val errors = values.entries.parallelStream().map {
+            val userGroup = UserGroup(key, it.key)
+            val request = if (it.value % 2 == 0) {
+                service.addUserToGroup(userGroup)
+            } else {
+                service.deleteUserFromGroup(userGroup)
+            }
+            return@map request.execute()
         }.filter {
             !it.isReallySuccessful
         }.count()
