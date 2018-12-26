@@ -46,7 +46,7 @@ LICENSE file.
     <dependency>
       <groupId>ch.unine</groupId>
       <artifactId>anonymbe-client</artifactId>
-      <version>0.2</version>
+      <version>0.3</version>
     </dependency>
 
     <dependency>
