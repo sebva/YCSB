@@ -120,6 +120,7 @@ LICENSE file.
     <module>accumulo1.8</module>
     <module>aerospike</module>
     <module>anonymbe-admin</module>
+    <module>anonymbe-storage</module>
     <module>arangodb</module>
     <module>asynchbase</module>
     <module>azuredocumentdb</module>
