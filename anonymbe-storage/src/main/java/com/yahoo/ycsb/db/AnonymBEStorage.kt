@@ -3,6 +3,7 @@ package com.yahoo.ycsb.db
 import ch.unine.anonymbe.api.*
 import ch.unine.anonymbe.client.Client
 import ch.unine.anonymbe.client.IndexedEnvelope
+import ch.unine.anonymbe.storage.HybridTokenAwsMinio
 import ch.unine.anonymbe.storage.Minio
 import ch.unine.anonymbe.storage.WriterProxy
 import com.yahoo.ycsb.ByteArrayByteIterator
@@ -21,9 +22,9 @@ class AnonymBEStorage : DB() {
 
     private val client by lazy {
         val minioUrl = properties["miniourl"] as? String ?: Minio.DEFAULT_ENDPOINT
-        //val writerProxyUrl = properties["writerproxyurl"] as? String ?: WriterProxy.DEFAULT_URL
+        val writerProxyUrl = properties["writerproxyurl"] as? String ?: WriterProxy.DEFAULT_URL_TOKEN
 
-        val storageClient = Minio(endpoint = minioUrl)
+        val storageClient = HybridTokenAwsMinio(minioEndpoint = minioUrl, writerProxyEndpoint = writerProxyUrl)
 
         Client(userId = USER_ID, apiUrl = apiUrl, storageClient = storageClient) { IndexedEnvelope(it) }
     }
