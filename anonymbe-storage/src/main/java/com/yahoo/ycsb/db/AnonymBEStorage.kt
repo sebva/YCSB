@@ -19,22 +19,16 @@ import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
 class AnonymBEStorage : DB() {
-    private val apiUrl get() = properties["apiurl"] as? String ?: Api.DEFAULT_URL
-    private val adminApi by lazy { Api.build<AdminApi>(apiUrl) }
-    private val client by lazy {
-        val minioUrl = properties["miniourl"] as? String ?: Minio.DEFAULT_ENDPOINT
-        val writerProxyUrl = properties["writerproxyurl"] as? String ?: WriterProxy.DEFAULT_URL_TOKEN
-
-        val storageClient = HybridTokenAwsMinio(minioEndpoint = minioUrl, writerProxyEndpoint = writerProxyUrl)
-
-        Client(userId = userId, apiUrl = apiUrl, storageClient = storageClient) { IndexedEnvelope(it) }
-    }
     private lateinit var userId: String
     private lateinit var userKey: String
+    private lateinit var client: Client
 
     override fun init() {
         val tid = tidCounter.getAndIncrement()
         userId = "$USER_ID_PREFIX$tid"
+
+        val apiUrl = properties["apiurl"] as? String ?: Api.DEFAULT_URL
+        val adminApi = Api.build<AdminApi>(apiUrl)
 
         val userObject = User(userId)
         var createUserResult = adminApi.createUser(userObject).execute()
@@ -49,17 +43,14 @@ class AnonymBEStorage : DB() {
 
         adminApi.addUserToGroup(UserGroup(userId, GROUP_ID)).execute().throwExceptionIfNotReallySuccessful()
 
-        client
+        val minioUrl = properties["miniourl"] as? String ?: Minio.DEFAULT_ENDPOINT
+        val writerProxyUrl = properties["writerproxyurl"] as? String ?: WriterProxy.DEFAULT_URL_TOKEN
+        val storageClient = HybridTokenAwsMinio(minioUrl, writerProxyUrl)
+        storageClient.createBucketIfNotExists(GROUP_ID)
+
+        client = Client(userId, apiUrl, storageClient) { IndexedEnvelope(it) }
 
         println("thread $tid ready")
-    }
-
-    override fun cleanup() {
-        try {
-            adminApi.deleteUser(User(userId))
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
 
     override fun insert(table: String?, filename: String, values: MutableMap<String, ByteIterator>): Status {
