@@ -46,7 +46,10 @@ class AnonymBEStorage : DB() {
         val minioUrl = properties["miniourl"] as? String ?: Minio.DEFAULT_ENDPOINT
         val writerProxyUrl = properties["writerproxyurl"] as? String ?: WriterProxy.DEFAULT_URL_TOKEN
         val storageClient = HybridTokenAwsMinio(minioUrl, writerProxyUrl)
-        storageClient.createBucketIfNotExists(GROUP_ID)
+        try {
+            storageClient.createBucketIfNotExists(GROUP_ID)
+        } catch (e: Exception) {
+        }
 
         client = Client(userId, apiUrl, storageClient) { IndexedEnvelope(it) }
 
