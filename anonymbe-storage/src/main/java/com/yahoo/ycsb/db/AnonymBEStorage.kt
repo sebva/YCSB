@@ -16,25 +16,27 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.nio.ByteBuffer
 import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
 
 class AnonymBEStorage : DB() {
     private val apiUrl get() = properties["apiurl"] as? String ?: Api.DEFAULT_URL
-
+    private val adminApi by lazy { Api.build<AdminApi>(apiUrl) }
     private val client by lazy {
         val minioUrl = properties["miniourl"] as? String ?: Minio.DEFAULT_ENDPOINT
         val writerProxyUrl = properties["writerproxyurl"] as? String ?: WriterProxy.DEFAULT_URL_TOKEN
 
         val storageClient = HybridTokenAwsMinio(minioEndpoint = minioUrl, writerProxyEndpoint = writerProxyUrl)
 
-        Client(userId = USER_ID, apiUrl = apiUrl, storageClient = storageClient) { IndexedEnvelope(it) }
+        Client(userId = userId, apiUrl = apiUrl, storageClient = storageClient) { IndexedEnvelope(it) }
     }
-
-    private val adminApi: AdminApi = Api.build(apiUrl)
-
+    private lateinit var userId: String
     private lateinit var userKey: String
 
     override fun init() {
-        val userObject = User(USER_ID)
+        val tid = tidCounter.getAndIncrement()
+        userId = "$USER_ID_PREFIX$tid"
+
+        val userObject = User(userId)
         var createUserResult = adminApi.createUser(userObject).execute()
 
         if (!createUserResult.isReallySuccessful) {
@@ -45,14 +47,16 @@ class AnonymBEStorage : DB() {
                 ?: throw Exception("createUser call failed: ${createUserResult.errorBody()?.string()}")
         userKey = user.user_key
 
-        adminApi.addUserToGroup(UserGroup(USER_ID, GROUP_ID)).execute().throwExceptionIfNotReallySuccessful()
+        adminApi.addUserToGroup(UserGroup(userId, GROUP_ID)).execute().throwExceptionIfNotReallySuccessful()
 
         client
+
+        println("thread $tid ready")
     }
 
     override fun cleanup() {
         try {
-            adminApi.deleteUser(User(USER_ID))
+            adminApi.deleteUser(User(userId))
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -131,7 +135,9 @@ class AnonymBEStorage : DB() {
     override fun update(table: String?, key: String?, values: MutableMap<String, ByteIterator>?): Status = Status.NOT_IMPLEMENTED
 
     companion object {
-        const val USER_ID = "macrouser"
-        const val GROUP_ID = "macrogroup"
+        const val USER_ID_PREFIX = "macrouser"
+        const val GROUP_ID = "field0"
+        @JvmStatic
+        val tidCounter = AtomicInteger(0)
     }
 }
