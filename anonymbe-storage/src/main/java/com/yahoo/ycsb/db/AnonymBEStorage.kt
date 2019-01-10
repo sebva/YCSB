@@ -17,6 +17,7 @@ import java.io.DataOutputStream
 import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.collections.HashMap
 
 class AnonymBEStorage : DB() {
     private lateinit var client: Client
@@ -70,6 +71,21 @@ class AnonymBEStorage : DB() {
         }
     }
 
+    /**
+     * Update does read-modify-write!
+     */
+    override fun update(table: String?, filename: String, updatedValues: MutableMap<String, ByteIterator>): Status {
+        val values = HashMap<String, ByteIterator>()
+        val readStatus = read(table, filename, null, values)
+        if (readStatus != Status.OK) {
+            return readStatus
+        }
+
+        values += updatedValues
+
+        return insert(table, filename, values)
+    }
+
     override fun read(table: String?, filename: String, fields: MutableSet<String>?, result: MutableMap<String, ByteIterator>): Status = try {
         val data = client.retrieveFromCloud(GROUP_ID, filename)
         val input: ByteBuffer = ByteBuffer.wrap(data)
@@ -115,8 +131,6 @@ class AnonymBEStorage : DB() {
 
     override fun scan(table: String?, startkey: String?, recordcount: Int, fields: MutableSet<String>?, result: Vector<HashMap<String, ByteIterator>>?): Status =
             Status.NOT_IMPLEMENTED
-
-    override fun update(table: String?, key: String?, values: MutableMap<String, ByteIterator>?): Status = Status.NOT_IMPLEMENTED
 
     companion object {
         const val USER_ID_PREFIX = "macrouser"
