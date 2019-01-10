@@ -19,39 +19,26 @@ import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
 class AnonymBEStorage : DB() {
-    private lateinit var userId: String
-    private lateinit var userKey: String
     private lateinit var client: Client
 
     override fun init() {
         val tid = tidCounter.getAndIncrement()
-        userId = "$USER_ID_PREFIX$tid"
 
         val apiUrl = properties["apiurl"] as? String ?: Api.DEFAULT_URL
-        val adminApi = Api.build<AdminApi>(apiUrl)
-
-        val userObject = User(userId)
-        var createUserResult = adminApi.createUser(userObject).execute()
-
-        if (!createUserResult.isReallySuccessful) {
-            adminApi.deleteUser(userObject).execute()
-            createUserResult = adminApi.createUser(userObject).execute()
-        }
-        val user = createUserResult.body()
-                ?: throw Exception("createUser call failed: ${createUserResult.errorBody()?.string()}")
-        userKey = user.user_key
-
-        adminApi.addUserToGroup(UserGroup(userId, GROUP_ID)).execute().throwExceptionIfNotReallySuccessful()
-
         val minioUrl = properties["miniourl"] as? String ?: Minio.DEFAULT_ENDPOINT
         val writerProxyUrl = properties["writerproxyurl"] as? String ?: WriterProxy.DEFAULT_URL_TOKEN
+
         val storageClient = HybridTokenAwsMinio(minioUrl, writerProxyUrl)
         try {
             storageClient.createBucketIfNotExists(GROUP_ID)
         } catch (e: Exception) {
         }
 
-        client = Client(userId, apiUrl, storageClient) { IndexedEnvelope(it) }
+        val userId = "$USER_ID_PREFIX$tid"
+        val userKey = ByteArray(USER_KEY_LENGTH).also {
+            userId.toByteArray().copyInto(it)
+        }
+        client = Client(userId, userKey, apiUrl, storageClient) { IndexedEnvelope(it) }
 
         println("thread $tid ready")
     }
@@ -84,7 +71,7 @@ class AnonymBEStorage : DB() {
     }
 
     override fun read(table: String?, filename: String, fields: MutableSet<String>?, result: MutableMap<String, ByteIterator>): Status = try {
-        val data = client.retrieveFromCloud(userKey, GROUP_ID, filename)
+        val data = client.retrieveFromCloud(GROUP_ID, filename)
         val input: ByteBuffer = ByteBuffer.wrap(data)
         while (input.hasRemaining()) {
             val keySize = input.getInt()
@@ -100,7 +87,7 @@ class AnonymBEStorage : DB() {
 
             val valueBuffer = ByteArray(valueSize)
             input.get(valueBuffer)
-            result.put(key, ByteArrayByteIterator(valueBuffer))
+            result[key] = ByteArrayByteIterator(valueBuffer)
         }
         Status.OK
     } catch (e: ErrorResponseException) {
@@ -131,6 +118,7 @@ class AnonymBEStorage : DB() {
     companion object {
         const val USER_ID_PREFIX = "macrouser"
         const val GROUP_ID = "field0"
+        const val USER_KEY_LENGTH = 32 // Synchronize with AnonymBE service
         @JvmStatic
         val tidCounter = AtomicInteger(0)
     }
