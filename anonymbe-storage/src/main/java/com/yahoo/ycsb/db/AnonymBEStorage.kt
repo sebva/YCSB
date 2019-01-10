@@ -98,7 +98,10 @@ class AnonymBEStorage : DB() {
             Status.ERROR
         }
     } catch (e: Exception) {
-        e.printStackTrace()
+        // For some mysterious reason, in < 5% of the cases, the client does not find the user's key in the envelope
+        if (e.message != "User key not in envelope") {
+            e.printStackTrace()
+        }
         Status.ERROR
     }
 
