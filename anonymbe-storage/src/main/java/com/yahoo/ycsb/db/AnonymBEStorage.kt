@@ -29,7 +29,7 @@ class AnonymBEStorage : DB() {
         val minioUrl = properties["miniourl"] as? String ?: Minio.DEFAULT_ENDPOINT
         val writerProxyUrl = properties["writerproxyurl"] as? String ?: WriterProxy.DEFAULT_URL_TOKEN
 
-        val storageClient = HybridTokenAwsMinio(minioUrl, writerProxyUrl)
+        val storageClient = Minio(minioUrl)
         try {
             storageClient.createBucketIfNotExists(GROUP_ID)
         } catch (e: Exception) {
@@ -50,7 +50,7 @@ class AnonymBEStorage : DB() {
         val byteOutput = ByteArrayOutputStream(values.map { Int.SIZE_BYTES * 2 + (it.key.length * 2) + it.value.bytesLeft().toInt() }.sum())
         val output = DataOutputStream(byteOutput)
 
-        values.forEach { key, value ->
+        values.forEach { (key, value) ->
             output.writeInt(key.length)
             output.writeInt(value.bytesLeft().toInt())
             output.writeBytes(key)
@@ -90,8 +90,8 @@ class AnonymBEStorage : DB() {
         val data = client.retrieveFromCloud(GROUP_ID, filename)
         val input: ByteBuffer = ByteBuffer.wrap(data)
         while (input.hasRemaining()) {
-            val keySize = input.getInt()
-            val valueSize = input.getInt()
+            val keySize = input.int
+            val valueSize = input.int
 
             val keyBuffer = ByteArray(keySize)
             input.get(keyBuffer)
